@@ -1,0 +1,619 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puri Beach Information Display</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Config for Custom Colors/Fonts -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            navy: '#051937',      // Very dark blue background
+                            panel: '#0a2347',     // Slightly lighter dark blue for panels
+                            header: '#133e7c',    // Blue for panel headers
+                            textBlue: '#1e4b8f',  // Text color on white background
+                            green: '#28a745',     // High tide / safe text
+                            blueLight: '#007bff', // Low tide text
+                            red: '#dc3545',       // High UV / Alert header
+                            yellow: '#ffc107',    // Alert box
+                            darkGrey: '#1a1a1a',  // Bottom footer
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Styles for elements hard to achieve purely with utility classes */
+        body {
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+        }
+
+        .display-board {
+            width: 100%;
+            max-width: 1400px;
+            background-color: theme('colors.brand.navy');
+            border: 4px solid #333;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* The Main Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 1.6fr 1.1fr;
+            grid-template-rows: auto auto;
+            gap: 2px; /* Acts as the dark border between panels */
+            background-color: theme('colors.brand.navy');
+            padding: 2px;
+        }
+
+        /* Responsive stacking for smaller screens */
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .panel-safety {
+                grid-column: 1 / span 2;
+            }
+            .panel-datetime {
+                grid-column: 1 / span 2;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .panel-forecast, .panel-safety, .panel-datetime {
+                grid-column: 1;
+            }
+        }
+
+        /* Panel Common Styles */
+        .panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background-color: theme('colors.brand.header');
+            color: white;
+            text-align: center;
+            padding: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+        }
+
+        /* Specific Panel Assignments */
+        .panel-weather {
+            grid-column: 1;
+            grid-row: 1;
+            background-color: theme('colors.brand.panel');
+            color: white;
+        }
+
+        .panel-tides {
+            grid-column: 2;
+            grid-row: 1;
+            background-color: white;
+        }
+
+        .panel-safety {
+            grid-column: 3;
+            grid-row: 1;
+            background-color: theme('colors.brand.panel');
+            color: white;
+        }
+
+        .panel-forecast {
+            grid-column: 1 / span 2;
+            grid-row: 2;
+            background-color: theme('colors.brand.panel');
+            color: white;
+        }
+
+        .panel-datetime {
+            grid-column: 3;
+            grid-row: 2;
+            background-color: theme('colors.brand.panel');
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 15px;
+        }
+
+        /* Weather Details List */
+        .weather-details li {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.95rem;
+        }
+        .weather-details li:last-child {
+            border-bottom: none;
+        }
+        .weather-details i {
+            width: 20px;
+            text-align: center;
+            margin-right: 10px;
+            color: #8ab4f8;
+        }
+
+        /* Tide Grid */
+        .tide-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            height: 100%;
+        }
+        .tide-cell {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-right: 1px solid #ddd;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+        }
+        .tide-cell:nth-child(even) { border-right: none; }
+        .tide-cell:nth-last-child(-n+2) { border-bottom: none; }
+        
+        .tide-icon-wrapper {
+            position: absolute;
+            left: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 1.5rem;
+        }
+
+        /* Forecast Grid */
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            text-align: center;
+        }
+        .forecast-day {
+            padding: 10px;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+        }
+        .forecast-day:last-child { border-right: none; }
+
+        /* Custom Scrollbar for smaller screens */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a192f;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e4b8f;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased font-sans">
+
+    <div class="display-board">
+        
+        <!-- Header Section -->
+        <header class="bg-white flex justify-between items-center px-6 py-4 border-b-4 border-brand-header">
+            <!-- Left Logo Placeholder -->
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full border-2 border-blue-900 flex items-center justify-center text-blue-900 overflow-hidden relative">
+                    <i class="fa-solid fa-dharmachakra text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black text-brand-textBlue leading-none tracking-tight">ODISHA</h1>
+                    <p class="text-[0.6rem] font-bold text-gray-600 tracking-widest mt-1">INDIA'S BEST KEPT SECRET.</p>
+                </div>
+            </div>
+
+            <!-- Center Title -->
+            <div class="text-center flex-1">
+                <h2 class="text-3xl lg:text-4xl font-black text-brand-textBlue tracking-wide">BEACH INFORMATION DISPLAY</h2>
+                <div class="flex justify-center gap-2 mt-1 text-sm font-bold text-brand-textBlue tracking-wider">
+                    <span>SAFE BEACH</span>
+                    <span class="text-gray-400">•</span>
+                    <span>CLEAN BEACH</span>
+                    <span class="text-gray-400">•</span>
+                    <span>HAPPY BEACH</span>
+                </div>
+            </div>
+
+            <!-- Right Logo Placeholder -->
+            <div class="flex items-center gap-3">
+                <div class="text-brand-red text-4xl">
+                    <i class="fa-solid fa-tower-observation"></i>
+                </div>
+                <div class="text-right border-l-2 border-gray-300 pl-3">
+                    <h1 class="text-2xl font-black text-brand-red leading-none tracking-wide">LIFEGUARD</h1>
+                    <p class="text-[0.65rem] font-bold text-gray-800 tracking-wider mt-1">WE CARE. WE PROTECT.</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Content -->
+        <div class="dashboard-grid flex-1">
+            
+            <!-- Weather Now Panel -->
+            <div class="panel panel-weather">
+                <div class="panel-header">WEATHER NOW</div>
+                <div class="flex-1 flex flex-col">
+                    <!-- Main Temp -->
+                    <div class="flex items-center justify-center p-6 gap-6 border-b border-white/10">
+                        <i class="fa-solid fa-cloud-sun text-6xl text-yellow-400 drop-shadow-md"></i>
+                        <div class="text-center">
+                            <div class="text-6xl font-bold flex items-start" id="live-temp">
+                                32<span class="text-3xl mt-1">°C</span>
+                            </div>
+                            <div class="text-sm font-bold tracking-wider mt-1" id="live-condition">PARTLY CLOUDY</div>
+                        </div>
+                    </div>
+                    <!-- Details List -->
+                    <ul class="weather-details flex-1 flex flex-col justify-center">
+                        <li>
+                            <span class="flex items-center text-gray-300 font-medium"><i class="fa-solid fa-temperature-half"></i> FEELS LIKE</span>
+                            <span class="font-bold" id="live-feels">36°C</span>
+                        </li>
+                        <li>
+                            <span class="flex items-center text-gray-300 font-medium"><i class="fa-solid fa-droplet"></i> HUMIDITY</span>
+                            <span class="font-bold" id="live-humidity">68%</span>
+                        </li>
+                        <li>
+                            <span class="flex items-center text-gray-300 font-medium"><i class="fa-solid fa-wind"></i> WIND</span>
+                            <span class="font-bold" id="live-wind">16 km/h NE</span>
+                        </li>
+                        <li>
+                            <span class="flex items-center text-gray-300 font-medium"><i class="fa-regular fa-sun"></i> UV INDEX</span>
+                            <span class="font-bold text-brand-red">7 HIGH</span>
+                        </li>
+                        <li>
+                            <span class="flex items-center text-gray-300 font-medium"><i class="fa-regular fa-eye"></i> VISIBILITY</span>
+                            <span class="font-bold">10 km</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tide Status Panel -->
+            <div class="panel panel-tides">
+                <div class="panel-header">TIDE STATUS <span class="text-sm font-normal normal-case ml-2">(PURI)</span></div>
+                <div class="flex-1 tide-grid">
+                    <!-- High Tide 1 -->
+                    <div class="tide-cell text-brand-textBlue">
+                        <div class="tide-icon-wrapper text-brand-green">
+                            <i class="fa-solid fa-arrow-up text-lg mb-[-5px]"></i>
+                            <i class="fa-solid fa-water"></i>
+                        </div>
+                        <div class="text-sm font-bold text-brand-green tracking-wide">HIGH TIDE</div>
+                        <div class="text-3xl font-black my-1">05:45 <span class="text-lg">AM</span></div>
+                        <div class="text-xs font-bold text-gray-500">HEIGHT: 1.35 m</div>
+                    </div>
+                    <!-- Low Tide 1 -->
+                    <div class="tide-cell text-brand-textBlue">
+                        <div class="tide-icon-wrapper text-brand-blueLight">
+                            <i class="fa-solid fa-arrow-down text-lg mb-[-5px]"></i>
+                            <i class="fa-solid fa-water"></i>
+                        </div>
+                        <div class="text-sm font-bold text-brand-blueLight tracking-wide">LOW TIDE</div>
+                        <div class="text-3xl font-black my-1">11:48 <span class="text-lg">AM</span></div>
+                        <div class="text-xs font-bold text-gray-500">HEIGHT: 0.68 m</div>
+                    </div>
+                    <!-- High Tide 2 -->
+                    <div class="tide-cell text-brand-textBlue">
+                        <div class="tide-icon-wrapper text-brand-green">
+                            <i class="fa-solid fa-arrow-up text-lg mb-[-5px]"></i>
+                            <i class="fa-solid fa-water"></i>
+                        </div>
+                        <div class="text-sm font-bold text-brand-green tracking-wide">HIGH TIDE</div>
+                        <div class="text-3xl font-black my-1">06:12 <span class="text-lg">PM</span></div>
+                        <div class="text-xs font-bold text-gray-500">HEIGHT: 1.42 m</div>
+                    </div>
+                    <!-- Low Tide 2 -->
+                    <div class="tide-cell text-brand-textBlue">
+                        <div class="tide-icon-wrapper text-brand-blueLight">
+                            <i class="fa-solid fa-arrow-down text-lg mb-[-5px]"></i>
+                            <i class="fa-solid fa-water"></i>
+                        </div>
+                        <div class="text-sm font-bold text-brand-blueLight tracking-wide">LOW TIDE</div>
+                        <div class="text-3xl font-black my-1">12:10 <span class="text-lg">AM</span></div>
+                        <div class="text-xs font-bold text-gray-500">HEIGHT: 0.60 m</div>
+                    </div>
+                </div>
+                <!-- Next Tide Banner -->
+                <div class="bg-brand-header text-white text-center py-2 font-bold text-sm tracking-wider" id="next-tide-banner">
+                    NEXT TIDE : HIGH TIDE AT 06:12 PM
+                </div>
+            </div>
+
+            <!-- Beach Safety Alert Panel -->
+            <div class="panel panel-safety">
+                <div class="panel-header bg-brand-red">BEACH SAFETY ALERT</div>
+                
+                <!-- Alert Box -->
+                <div class="bg-brand-yellow text-brand-navy p-4 flex items-center gap-4 border-b-4 border-brand-navy">
+                    <i class="fa-solid fa-flag text-brand-red text-5xl"></i>
+                    <div class="flex-1 text-center pr-4">
+                        <h3 class="text-2xl font-black tracking-wide">BE CAREFUL</h3>
+                        <p class="text-sm font-bold leading-tight mt-1">MODERATE SEA CONDITIONS<br>SWIM BETWEEN THE FLAGS</p>
+                    </div>
+                </div>
+
+                <!-- Rules List -->
+                <div class="flex-1 p-4 flex flex-col justify-around bg-brand-navy">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center relative overflow-hidden">
+                            <div class="absolute inset-0 flex">
+                                <div class="w-1/2 bg-red-600 h-full"></div>
+                                <div class="w-1/2 bg-yellow-400 h-full"></div>
+                            </div>
+                            <i class="fa-solid fa-flag text-white z-10 text-sm"></i>
+                        </div>
+                        <span class="font-bold text-sm tracking-wide">SWIM IN BETWEEN<br>RED & YELLOW FLAGS</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center relative">
+                            <i class="fa-solid fa-person-swimming"></i>
+                            <div class="absolute w-full h-[2px] bg-red-500 rotate-45 top-1/2 left-0 transform -translate-y-1/2"></div>
+                        </div>
+                        <span class="font-bold text-sm tracking-wide">DON'T SWIM ALONE</span>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center relative">
+                            <i class="fa-solid fa-wine-bottle text-xs mr-1"></i><i class="fa-solid fa-glass-water text-xs"></i>
+                            <div class="absolute w-full h-[2px] bg-red-500 rotate-45 top-1/2 left-0 transform -translate-y-1/2"></div>
+                        </div>
+                        <span class="font-bold text-sm tracking-wide">NO ALCOHOL</span>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </div>
+                        <span class="font-bold text-sm tracking-wide">KEEP OUR BEACH CLEAN</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weather Forecast Panel -->
+            <div class="panel panel-forecast">
+                <div class="panel-header text-left pl-6">WEATHER FORECAST</div>
+                <div class="forecast-grid flex-1">
+                    <!-- Day 1 -->
+                    <div class="forecast-day">
+                        <div class="text-sm font-bold text-gray-300">TODAY</div>
+                        <i class="fa-solid fa-cloud-sun text-3xl text-yellow-400 my-2"></i>
+                        <div class="flex flex-col items-center">
+                            <span class="font-bold text-lg">32°C</span>
+                            <span class="text-sm text-gray-400">26°C</span>
+                        </div>
+                    </div>
+                    <!-- Day 2 -->
+                    <div class="forecast-day">
+                        <div class="text-sm font-bold text-gray-300">TOMORROW</div>
+                        <i class="fa-solid fa-cloud-showers-heavy text-3xl text-gray-300 my-2"></i>
+                        <div class="flex flex-col items-center">
+                            <span class="font-bold text-lg">31°C</span>
+                            <span class="text-sm text-gray-400">25°C</span>
+                        </div>
+                    </div>
+                    <!-- Day 3 -->
+                    <div class="forecast-day">
+                        <div class="text-sm font-bold text-gray-300" id="day-3-name">FRIDAY</div>
+                        <i class="fa-solid fa-cloud-rain text-3xl text-gray-300 my-2"></i>
+                        <div class="flex flex-col items-center">
+                            <span class="font-bold text-lg">30°C</span>
+                            <span class="text-sm text-gray-400">25°C</span>
+                        </div>
+                    </div>
+                    <!-- Day 4 -->
+                    <div class="forecast-day">
+                        <div class="text-sm font-bold text-gray-300" id="day-4-name">SATURDAY</div>
+                        <i class="fa-solid fa-cloud-sun text-3xl text-yellow-400 my-2"></i>
+                        <div class="flex flex-col items-center">
+                            <span class="font-bold text-lg">31°C</span>
+                            <span class="text-sm text-gray-400">26°C</span>
+                        </div>
+                    </div>
+                    <!-- Day 5 -->
+                    <div class="forecast-day">
+                        <div class="text-sm font-bold text-gray-300" id="day-5-name">SUNDAY</div>
+                        <i class="fa-solid fa-cloud-sun text-3xl text-yellow-400 my-2"></i>
+                        <div class="flex flex-col items-center">
+                            <span class="font-bold text-lg">32°C</span>
+                            <span class="text-sm text-gray-400">26°C</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date & Time Panel -->
+            <div class="panel panel-datetime">
+                <div class="flex items-center gap-4">
+                    <i class="fa-regular fa-calendar-days text-3xl text-gray-300"></i>
+                    <div>
+                        <div class="font-bold text-lg tracking-wide" id="current-date">04 JUL 2026</div>
+                        <div class="font-bold text-sm text-gray-300 tracking-widest" id="current-day">FRIDAY</div>
+                    </div>
+                </div>
+                <div class="h-10 w-px bg-white/20"></div>
+                <div class="flex items-center gap-3">
+                    <i class="fa-regular fa-clock text-3xl text-gray-300"></i>
+                    <div class="font-black text-2xl tracking-wide" id="current-time">10:30 AM</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emergency Banner -->
+        <div class="bg-brand-navy border-t-2 border-white/10 px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-brand-red flex items-center justify-center text-white text-2xl animate-pulse">
+                    <i class="fa-solid fa-phone-volume"></i>
+                </div>
+                <div>
+                    <div class="text-white font-bold leading-tight tracking-wide">EMERGENCY<br>HELPLINE</div>
+                </div>
+                <div class="text-brand-red font-black text-4xl ml-2">112</div>
+            </div>
+            
+            <div class="text-brand-green font-bold text-xl tracking-widest hidden md:block">
+                ENJOY THE BEACH. STAY SAFE.
+            </div>
+            
+            <div class="w-12"></div> <!-- Spacer for balance -->
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-brand-darkGrey text-gray-400 text-[0.65rem] px-6 py-2 flex justify-between items-center font-bold tracking-wider uppercase border-t border-gray-700">
+            <div>Issued By: ODISHA TOURISM</div>
+            <div class="flex items-center gap-3">
+                <span>In Association With: ODISHA FIRE & EMERGENCY SERVICES</span>
+                <div class="w-6 h-6 rounded-full bg-red-700 border border-yellow-500 flex items-center justify-center text-[8px] text-yellow-500 relative overflow-hidden">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Logic for Live Time, Date, and simulated weather updates -->
+    <script>
+        // --- Date and Time Logic ---
+        function updateDateTime() {
+            const now = new Date();
+            
+            // Format Time
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            const strTime = hours + ':' + minutes + ' ' + ampm;
+            
+            // Format Date
+            const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+            
+            const dayNum = now.getDate() < 10 ? '0' + now.getDate() : now.getDate();
+            const monthStr = months[now.getMonth()];
+            const year = now.getFullYear();
+            const dayName = days[now.getDay()];
+
+            document.getElementById('current-time').textContent = strTime;
+            document.getElementById('current-date').textContent = `${dayNum} ${monthStr} ${year}`;
+            document.getElementById('current-day').textContent = dayName;
+
+            // Update forecast day names based on current day
+            document.getElementById('day-3-name').textContent = days[(now.getDay() + 2) % 7];
+            document.getElementById('day-4-name').textContent = days[(now.getDay() + 3) % 7];
+            document.getElementById('day-5-name').textContent = days[(now.getDay() + 4) % 7];
+        }
+
+        // Initialize and set interval
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+
+        // --- Simulated Live Weather Data (to satisfy the "live" request without an API key) ---
+        let baseTemp = 32;
+        let baseHumidity = 68;
+        let windSpeed = 16;
+        let windDirs = ['NE', 'E', 'NNE'];
+
+        function simulateWeatherUpdate() {
+            // Fluctuate temp slightly
+            const tempChange = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+            let currentTemp = baseTemp + tempChange;
+            
+            // Fluctuate humidity
+            let currentHumidity = baseHumidity + (Math.floor(Math.random() * 5) - 2);
+            
+            // Fluctuate wind
+            let currentWind = windSpeed + (Math.floor(Math.random() * 4) - 2);
+            let currentWindDir = windDirs[Math.floor(Math.random() * windDirs.length)];
+
+            // Update DOM
+            document.getElementById('live-temp').innerHTML = `${currentTemp}<span class="text-3xl mt-1">°C</span>`;
+            document.getElementById('live-feels').textContent = `${currentTemp + 4}°C`;
+            document.getElementById('live-humidity').textContent = `${currentHumidity}%`;
+            document.getElementById('live-wind').textContent = `${currentWind} km/h ${currentWindDir}`;
+
+            // Add subtle animation class to indicate update
+            const tempEl = document.getElementById('live-temp');
+            tempEl.classList.add('text-white');
+            setTimeout(() => tempEl.classList.remove('text-white'), 500);
+        }
+
+        // Simulate data refresh every 10 seconds to feel "live"
+        setInterval(simulateWeatherUpdate, 10000);
+
+        // Logic to highlight the "Next Tide" could be added here based on current time
+        function updateNextTide() {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const banner = document.getElementById('next-tide-banner');
+            
+            // Simple logic: if it's past 12:10 AM and before 5:45 AM -> Next is High Tide 05:45 AM
+            // For a real app, this would parse actual tide time data objects.
+            // This is a static simulation based on the reference image times.
+            if(currentHour >= 0 && currentHour < 5) {
+                banner.textContent = "NEXT TIDE : HIGH TIDE AT 05:45 AM";
+            } else if (currentHour >= 5 && currentHour < 11) {
+                banner.textContent = "NEXT TIDE : LOW TIDE AT 11:48 AM";
+            } else if (currentHour >= 11 && currentHour < 18) {
+                banner.textContent = "NEXT TIDE : HIGH TIDE AT 06:12 PM";
+            } else {
+                banner.textContent = "NEXT TIDE : LOW TIDE AT 12:10 AM";
+            }
+        }
+        
+        updateNextTide();
+        setInterval(updateNextTide, 60000); // Check every minute
+
+    </script>
+</body>
+</html>
